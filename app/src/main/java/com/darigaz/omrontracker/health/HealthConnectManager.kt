@@ -13,6 +13,7 @@ import androidx.health.connect.client.units.Percentage
 import androidx.health.connect.client.units.Power
 import com.darigaz.omrontracker.data.Measurement
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 /**
@@ -57,7 +58,7 @@ class HealthConnectManager(private val context: Context) {
     suspend fun insertMeasurement(m: Measurement) {
         val time: Instant = Instant.ofEpochMilli(m.timestamp)
         val zoneOffset: ZoneOffset =
-            ZoneOffset.systemDefault().rules.getOffset(time)
+            ZoneId.systemDefault().rules.getOffset(time)
 
         val records = listOf(
             WeightRecord(
