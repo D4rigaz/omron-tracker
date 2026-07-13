@@ -39,7 +39,7 @@ android {
 
 dependencies {
     // Health Connect
-    implementation("androidx.health.connect:connect-client:1.1.0-rc03")
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha10")
 
     // Room (persistência local do histórico completo)
     implementation("androidx.room:room-runtime:2.6.1")
