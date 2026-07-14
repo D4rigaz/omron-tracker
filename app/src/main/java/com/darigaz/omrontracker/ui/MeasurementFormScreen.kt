@@ -26,6 +26,7 @@ private val formEditFormatter: java.time.format.DateTimeFormatter =
 @Composable
 fun MeasurementFormScreen(viewModel: MeasurementViewModel) {
     val form by viewModel.form.collectAsState()
+    val editing = form.editing // captura local: permite smart cast do nulável
 
     Column(
         modifier = Modifier
@@ -35,9 +36,9 @@ fun MeasurementFormScreen(viewModel: MeasurementViewModel) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            if (form.editing != null)
+            if (editing != null)
                 "Editando medição — " + formEditFormatter.format(
-                    java.time.Instant.ofEpochMilli(form.editing.timestamp)
+                    java.time.Instant.ofEpochMilli(editing.timestamp)
                 )
             else "Nova medição — Omron HBF-514C",
             style = MaterialTheme.typography.titleLarge,
@@ -67,9 +68,9 @@ fun MeasurementFormScreen(viewModel: MeasurementViewModel) {
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { viewModel.save() }, enabled = !form.saving) {
-                Text(if (form.saving) "Salvando..." else if (form.editing != null) "Salvar edição" else "Salvar")
+                Text(if (form.saving) "Salvando..." else if (editing != null) "Salvar edição" else "Salvar")
             }
-            if (form.editing != null) {
+            if (editing != null) {
                 Button(onClick = { viewModel.cancelEdit() }) {
                     Text("Cancelar edição")
                 }
