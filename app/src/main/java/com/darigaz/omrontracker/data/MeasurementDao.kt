@@ -21,6 +21,9 @@ interface MeasurementDao {
     @Query("SELECT * FROM measurements WHERE syncedToHealthConnect = 0 ORDER BY timestamp ASC")
     suspend fun pendingSync(): List<Measurement>
 
+    @Query("SELECT * FROM measurements WHERE syncedToGitHub = 0 ORDER BY timestamp ASC")
+    suspend fun pendingGitHubSync(): List<Measurement>
+
     @Query("SELECT * FROM measurements ORDER BY timestamp DESC LIMIT 1")
     suspend fun latest(): Measurement?
 }

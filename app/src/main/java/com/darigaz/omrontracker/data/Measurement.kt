@@ -41,6 +41,9 @@ data class Measurement(
 
     /** Se esta medição já foi sincronizada com o Health Connect. */
     val syncedToHealthConnect: Boolean = false,
+
+    /** Se esta medição já foi enviada ao repositório GitHub (measurements.json). */
+    val syncedToGitHub: Boolean = false,
 ) {
     /** Massa magra derivada: peso × (1 − %gordura). Usada no LeanBodyMassRecord. */
     val leanBodyMassKg: Double

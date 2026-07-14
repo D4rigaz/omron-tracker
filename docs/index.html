@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Omron Tracker · Composição corporal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --paper:#EAF0F3;         /* fundo: papel clínico frio */
+  --surface:#FFFFFF;
+  --ink:#152A3D;           /* texto principal */
+  --ink-soft:#4A6076;
+  --line:#D3DEE6;
+  --blue:#0E6BA8;          /* azul do instrumento */
+  --blue-deep:#0A4F7D;
+  --low:#7A8CA3;           /* classificações */
+  --ok:#2E7D5B;
+  --warn:#C97B1D;
+  --alert:#B4452F;
+  --radius:14px;
+  --shadow:0 1px 2px rgba(21,42,61,.06),0 4px 14px rgba(21,42,61,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+  font-size:15px;line-height:1.55;
+  min-height:100vh;
+}
+h1,h2,h3,.num{font-family:'Archivo',sans-serif}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:'tnum'}
+.wrap{max-width:1060px;margin:0 auto;padding:0 16px 64px}
+
+/* ---------- header ---------- */
+header{
+  background:var(--surface);border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:20;
+}
+.header-in{
+  max-width:1060px;margin:0 auto;padding:14px 16px;
+  display:flex;align-items:center;gap:12px;
+}
+.logo{
+  width:34px;height:34px;border-radius:9px;background:var(--blue-deep);
+  color:#fff;display:grid;place-items:center;
+  font-family:'Archivo';font-weight:800;font-size:15px;letter-spacing:-.5px;
+}
+.header-in h1{font-size:17px;font-weight:700;letter-spacing:-.2px}
+.header-sub{font-size:12px;color:var(--ink-soft)}
+.header-spacer{flex:1}
+.btn{
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:9px;padding:8px 14px;font:inherit;font-size:13.5px;font-weight:600;
+  cursor:pointer;transition:border-color .15s, background .15s;
+}
+.btn:hover{border-color:var(--blue)}
+.btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover{background:var(--blue-deep)}
+
+/* ---------- estado / setup ---------- */
+.notice{
+  margin:20px 0;padding:14px 16px;border-radius:var(--radius);
+  background:#FBF3E4;border:1px solid #EAD9B4;color:#6E5313;font-size:14px;
+}
+.notice.error{background:#FAEAE5;border-color:#EBC4B8;color:#7C2F1D}
+.panel{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:22px;margin:20px 0;
+}
+.panel h2{font-size:16px;margin-bottom:4px}
+.panel .hint{font-size:13px;color:var(--ink-soft);margin-bottom:16px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:4px}
+.field input,.field select{
+  width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
+  font:inherit;font-size:14px;background:#FBFDFE;color:var(--ink);
+}
+.field input:focus,.field select:focus{outline:2px solid var(--blue);outline-offset:0;border-color:var(--blue)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+@media(max-width:560px){.grid2{grid-template-columns:1fr}}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* ---------- hero ---------- */
+.hero{
+  margin-top:22px;display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:14px;
+}
+@media(max-width:760px){.hero{grid-template-columns:1fr 1fr}.hero .cell:first-child{grid-column:1/-1}}
+.cell{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px;
+}
+.cell .lbl{font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-soft)}
+.cell .big{font-size:44px;font-weight:800;letter-spacing:-1.5px;line-height:1.05;margin-top:4px}
+.cell .mid{font-size:28px;font-weight:700;letter-spacing:-.6px;line-height:1.1;margin-top:4px}
+.cell .unit{font-size:16px;font-weight:600;color:var(--ink-soft);letter-spacing:0}
+.delta{font-size:13px;font-weight:600;margin-top:6px}
+.delta.down{color:var(--ok)}.delta.up{color:var(--alert)}.delta.flat{color:var(--ink-soft)}
+.delta.up.good{color:var(--ok)}.delta.down.bad{color:var(--alert)}
+
+/* ---------- seções ---------- */
+section{margin-top:34px}
+.sec-head{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.sec-head h2{font-size:19px;font-weight:700;letter-spacing:-.3px}
+.sec-head .sub{font-size:13px;color:var(--ink-soft)}
+
+/* ---------- cards de métrica ---------- */
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.mcard{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px 16px 14px;
+}
+.mcard-top{display:flex;align-items:flex-start;gap:8px}
+.mcard-top .name{font-size:14px;font-weight:600}
+.mcard-top .spacer{flex:1}
+.chip{
+  font-size:11.5px;font-weight:700;letter-spacing:.3px;
+  padding:3px 9px;border-radius:99px;color:#fff;white-space:nowrap;
+}
+.mcard .val{font-size:30px;font-weight:800;letter-spacing:-1px;margin-top:6px}
+.mcard .val .unit{font-size:14px;font-weight:600;color:var(--ink-soft);letter-spacing:0}
+.mcard .mdelta{font-size:12.5px;margin-top:2px;color:var(--ink-soft)}
+
+/* faixa de referência: assinatura visual do painel */
+.band{margin-top:12px}
+.band-track{position:relative;height:9px;border-radius:6px;display:flex;overflow:visible}
+.band-seg{height:100%}
+.band-seg:first-child{border-radius:6px 0 0 6px}
+.band-seg:last-child{border-radius:0 6px 6px 0}
+.band-marker{
+  position:absolute;top:-5px;width:0;height:0;transform:translateX(-6px);
+  border-left:6px solid transparent;border-right:6px solid transparent;
+  border-top:9px solid var(--ink);
+}
+.band-labels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-soft);margin-top:5px}
+
+details.explain{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}
+details.explain summary{
+  cursor:pointer;font-size:12.5px;font-weight:600;color:var(--blue);
+  list-style:none;user-select:none;
+}
+details.explain summary::before{content:'+ '}
+details.explain[open] summary::before{content:'− '}
+details.explain p{font-size:13px;color:var(--ink-soft);margin-top:8px}
+details.explain p+p{margin-top:6px}
+
+/* ---------- gráfico ---------- */
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chips button{
+  border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);
+  border-radius:99px;padding:6px 13px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;
+}
+.chips button[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
+.chips button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.chart-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+.chart-box{position:relative;height:340px}
+@media(max-width:560px){.chart-box{height:260px}}
+
+/* ---------- corpo ---------- */
+.body-grid{display:grid;grid-template-columns:280px 1fr;gap:20px;align-items:start}
+@media(max-width:760px){.body-grid{grid-template-columns:1fr}}
+.body-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;text-align:center}
+.body-panel svg{max-width:210px;width:100%;height:auto}
+.legend{display:flex;flex-direction:column;gap:6px;margin-top:12px;text-align:left}
+.legend .li{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft)}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.body-text .panel{margin:0 0 14px}
+.disclaimer{
+  font-size:12.5px;color:var(--ink-soft);border-left:3px solid var(--warn);
+  padding:8px 12px;background:#FBF6EC;border-radius:0 8px 8px 0;margin-top:8px;
+}
+
+footer{margin-top:44px;font-size:12px;color:var(--ink-soft);text-align:center}
+.hidden{display:none !important}
+@media (prefers-reduced-motion: no-preference){
+  .mcard,.cell{transition:transform .15s ease}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-in">
+    <div class="logo" aria-hidden="true">OT</div>
+    <div>
+      <h1>Omron Tracker</h1>
+      <div class="header-sub" id="lastSync">Sem dados carregados</div>
+    </div>
+    <div class="header-spacer"></div>
+    <button class="btn" id="btnRefresh" title="Recarregar do GitHub">↻ Atualizar</button>
+    <button class="btn" id="btnSettings">⚙ Configurar</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div id="statusBox" class="hidden"></div>
+
+  <!-- ===== Setup / Configurações ===== -->
+  <div class="panel hidden" id="setupPanel">
+    <h2>Conexão com os dados</h2>
+    <p class="hint">
+      A página lê o arquivo <code>measurements.json</code> de um repositório <strong>privado</strong>
+      via API do GitHub. Use um fine-grained PAT <strong>somente leitura</strong>
+      (Contents: Read-only) restrito a esse repositório. O token fica salvo apenas
+      neste navegador.
+    </p>
+    <div class="grid2">
+      <div class="field"><label for="fOwner">Usuário/organização</label><input id="fOwner" autocomplete="off" placeholder="D4rigaz"></div>
+      <div class="field"><label for="fRepo">Repositório de dados</label><input id="fRepo" autocomplete="off" placeholder="omron-data"></div>
+    </div>
+    <div class="field"><label for="fToken">Token (fine-grained PAT, somente leitura)</label><input id="fToken" type="password" autocomplete="off" placeholder="github_pat_…"></div>
+    <div class="grid2">
+      <div class="field">
+        <label for="fSex">Sexo (para faixas de referência Omron)</label>
+        <select id="fSex"><option value="M">Masculino</option><option value="F">Feminino</option></select>
+      </div>
+      <div class="field"><label for="fBirth">Ano de nascimento</label><input id="fBirth" type="number" min="1930" max="2010" placeholder="1985"></div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="btnSave">Salvar e carregar dados</button>
+      <button class="btn" id="btnDemo">Ver com dados de exemplo</button>
+    </div>
+  </div>
+
+  <!-- ===== Hero ===== -->
+  <div class="hero hidden" id="hero"></div>
+
+  <!-- ===== Métricas ===== -->
+  <section class="hidden" id="secMetrics">
+    <div class="sec-head"><h2>Última medição</h2><span class="sub" id="metricsDate"></span></div>
+    <div class="metrics" id="metricsGrid"></div>
+  </section>
+
+  <!-- ===== Evolução ===== -->
+  <section class="hidden" id="secChart">
+    <div class="sec-head"><h2>Evolução</h2><span class="sub">todas as medições registradas</span></div>
+    <div class="chips" id="chartChips" role="group" aria-label="Escolher métrica do gráfico"></div>
+    <div class="chart-panel"><div class="chart-box"><canvas id="chart"></canvas></div></div>
+  </section>
+
+  <!-- ===== Corpo ===== -->
+  <section class="hidden" id="secBody">
+    <div class="sec-head"><h2>Onde está a gordura</h2><span class="sub">representação a partir dos índices da balança</span></div>
+    <div class="body-grid">
+      <div class="body-panel">
+        <svg id="bodySvg" viewBox="0 0 200 420" role="img" aria-label="Silhueta humana com destaque na região abdominal">
+          <defs>
+            <radialGradient id="viscGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#B4452F" stop-opacity="0.95"/>
+              <stop offset="60%" stop-color="#C97B1D" stop-opacity="0.55"/>
+              <stop offset="100%" stop-color="#C97B1D" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="subcGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#0E6BA8" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#0E6BA8" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <!-- silhueta esquemática (pictograma frontal) -->
+          <g fill="#C6D4DE">
+            <circle cx="100" cy="38" r="24"/>
+            <path d="M100 66
+                     C 72 66 60 84 57 106
+                     L 50 176 C 49 186 57 190 62 182 L 72 128
+                     L 70 216 C 70 224 74 230 74 238
+                     L 70 330 C 69 342 72 400 78 406 C 84 412 96 410 95 400
+                     L 92 330 L 98 250 L 102 250 L 108 330 L 105 400
+                     C 104 410 116 412 122 406 C 128 400 131 342 130 330
+                     L 126 238 C 126 230 130 224 130 216
+                     L 128 128 L 138 182 C 143 190 151 186 150 176
+                     L 143 106 C 140 84 128 66 100 66 Z"/>
+          </g>
+          <!-- camada subcutânea (quadril/tronco) escalada pelo % de gordura -->
+          <ellipse id="subcBlob" cx="100" cy="212" rx="46" ry="60" fill="url(#subcGrad)"/>
+          <!-- gordura visceral: região abdominal, escalada pelo nível 1–30 -->
+          <ellipse id="viscBlob" cx="100" cy="196" rx="30" ry="34" fill="url(#viscGrad)"/>
+        </svg>
+        <div class="legend">
+          <div class="li"><span class="dot" style="background:#C97B1D"></span><span id="legendVisc">Gordura visceral (região abdominal)</span></div>
+          <div class="li"><span class="dot" style="background:#0E6BA8"></span><span id="legendSubc">Gordura subcutânea (distribuição geral)</span></div>
+        </div>
+      </div>
+      <div class="body-text" id="bodyText"></div>
+    </div>
+  </section>
+
+  <footer>
+    Omron Tracker · dados registrados manualmente da balança HBF-514C ·
+    este painel é informativo e não substitui avaliação profissional
+  </footer>
+</div>
+
+<script>
+'use strict';
+
+/* ================= Configurações (localStorage) ================= */
+const CFG_KEY = 'omron-tracker-cfg';
+const cfg = {
+  load(){ try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch(e){ return {}; } },
+  save(o){ localStorage.setItem(CFG_KEY, JSON.stringify(o)); }
+};
+
+let state = { data: [], demo: false };
+
+const $ = (id) => document.getElementById(id);
+const fmtN = (v, d=1) => v.toLocaleString('pt-BR', {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtDate = (ts) => new Date(ts).toLocaleDateString('pt-BR', {day:'2-digit', month:'short', year:'numeric'});
+const fmtDateTime = (ts) => new Date(ts).toLocaleString('pt-BR', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'});
+
+/* ================= Faixas de referência =================
+   Gordura corporal e músculo esquelético: tabelas de classificação Omron
+   (por sexo e faixa etária). Visceral: escala Omron 1–30. IMC: OMS.       */
+const LEVELS = {
+  baixo:     { label:'Baixo',      color:'var(--low)'   },
+  normal:    { label:'Normal',     color:'var(--ok)'    },
+  alto:      { label:'Alto',       color:'var(--warn)'  },
+  muitoAlto: { label:'Muito alto', color:'var(--alert)' },
+};
+
+function fatRanges(sex, age){
+  if (sex === 'F') {
+    if (age < 40)  return [21.0, 33.0, 39.0];
+    if (age < 60)  return [23.0, 34.0, 40.0];
+    return [24.0, 36.0, 42.0];
+  }
+  if (age < 40)  return [8.0, 20.0, 25.0];
+  if (age < 60)  return [11.0, 22.0, 28.0];
+  return [13.0, 25.0, 30.0];
+}
+function muscleRanges(sex, age){
+  if (sex === 'F') {
+    if (age < 40)  return [24.3, 30.4, 35.4];
+    if (age < 60)  return [24.1, 30.2, 35.2];
+    return [23.9, 30.0, 35.0];
+  }
+  if (age < 40)  return [33.3, 39.4, 43.9];
+  if (age < 60)  return [33.1, 39.2, 43.9];
+  return [32.9, 39.0, 43.7];
+}
+
+/* Classifica um valor contra cortes [c1,c2,c3] => 4 níveis. */
+function classify4(v, cuts, names){
+  if (v < cuts[0]) return names[0];
+  if (v < cuts[1]) return names[1];
+  if (v < cuts[2]) return names[2];
+  return names[3];
+}
+
+function classifyBMI(v){
+  if (v < 18.5) return { level:'baixo', label:'Abaixo do peso' };
+  if (v < 25)   return { level:'normal', label:'Peso normal' };
+  if (v < 30)   return { level:'alto', label:'Sobrepeso' };
+  if (v < 35)   return { level:'muitoAlto', label:'Obesidade I' };
+  if (v < 40)   return { level:'muitoAlto', label:'Obesidade II' };
+  return { level:'muitoAlto', label:'Obesidade III' };
+}
+function classifyVisceral(v){
+  if (v <= 9)  return { level:'normal', label:'Normal (1–9)' };
+  if (v <= 14) return { level:'alto', label:'Alto (10–14)' };
+  return { level:'muitoAlto', label:'Muito alto (15–30)' };
+}
+
+/* ================= Definição das métricas ================= */
+function metricDefs(sex, age){
+  const fr = fatRanges(sex, age);
+  const mr = muscleRanges(sex, age);
+  return [
+    {
+      key:'weightKg', name:'Peso', unit:'kg', dec:1, betterWhen:'down',
+      explain:[
+        'Massa corporal total. Isoladamente diz pouco: a mesma variação pode vir de água, músculo ou gordura.',
+        'Acompanhe junto com o % de gordura e o % de músculo esquelético — perder peso mantendo músculo é o cenário ideal.'
+      ]
+    },
+    {
+      key:'bmi', name:'IMC', unit:'', dec:1, betterWhen:'down',
+      band:{ min:15, max:45, cuts:[18.5,25,30], levels:['baixo','normal','alto','muitoAlto'],
+             labels:['15','18,5','25','30','45'] },
+      classify:(v)=>classifyBMI(v),
+      explain:[
+        'Índice de Massa Corporal: peso ÷ altura². Classificação da OMS: abaixo de 18,5 (baixo peso), 18,5–24,9 (normal), 25–29,9 (sobrepeso), 30+ (obesidade).',
+        'Limitação importante: o IMC não distingue músculo de gordura. Pessoas musculosas podem ter IMC alto com gordura baixa — por isso a balança também mede a composição.'
+      ]
+    },
+    {
+      key:'bodyFatPercent', name:'Gordura corporal', unit:'%', dec:1, betterWhen:'down',
+      band:{ min:5, max:50, cuts:fr, levels:['baixo','normal','alto','muitoAlto'],
+             labels:['5%', fmtN(fr[0]), fmtN(fr[1]), fmtN(fr[2]), '50%'] },
+      classify:(v)=>({ level: classify4(v, fr, ['baixo','normal','alto','muitoAlto']),
+                       label: LEVELS[classify4(v, fr, ['baixo','normal','alto','muitoAlto'])].label }),
+      explain:[
+        'Percentual do peso total que é gordura (subcutânea + visceral), estimado por bioimpedância: uma corrente elétrica imperceptível percorre o corpo e a resistência indica a proporção de gordura.',
+        'As faixas mostradas seguem a classificação da Omron para seu sexo e idade. A hidratação afeta a medida — meça sempre no mesmo horário e condição (ideal: ao acordar, após ir ao banheiro, antes de comer).'
+      ]
+    },
+    {
+      key:'skeletalMusclePercent', name:'Músculo esquelético', unit:'%', dec:1, betterWhen:'up',
+      band:{ min:20, max:50, cuts:mr, levels:['baixo','normal','alto','muitoAlto'],
+             labels:['20%', fmtN(mr[0]), fmtN(mr[1]), fmtN(mr[2]), '50%'] },
+      classify:(v)=>{
+        const lv = classify4(v, mr, ['baixo','normal','alto','muitoAlto']);
+        return { level: lv, label: lv==='alto' || lv==='muitoAlto' ? LEVELS[lv].label+' (bom)' : LEVELS[lv].label };
+      },
+      levelColorOverride:{ alto:'var(--ok)', muitoAlto:'var(--ok)' },
+      explain:[
+        'Percentual do peso composto por músculos esqueléticos — os que você treina e controla voluntariamente. Aqui, mais alto é melhor.',
+        'É o principal aliado no processo: mais músculo eleva o metabolismo de repouso e protege articulações no treino e na moto. Se o peso cai mas este % sobe, você está perdendo gordura, não massa magra.'
+      ]
+    },
+    {
+      key:'visceralFatLevel', name:'Gordura visceral', unit:'', dec:0, betterWhen:'down',
+      band:{ min:1, max:30, cuts:[9.5,14.5], levels:['normal','alto','muitoAlto'],
+             labels:['1','9','14','30'] },
+      classify:(v)=>classifyVisceral(v),
+      explain:[
+        'Índice (escala Omron de 1 a 30, sem unidade) da gordura acumulada na cavidade abdominal, ao redor de órgãos como fígado e intestinos. Nível 1–9 é normal; 10–14 alto; 15–30 muito alto.',
+        'É a gordura metabolicamente mais perigosa — associada a resistência à insulina, pressão alta e risco cardiovascular. A boa notícia: é também a que responde mais rápido a exercício aeróbico e déficit calórico.'
+      ]
+    },
+    {
+      key:'leanBodyMassKg', name:'Massa magra', unit:'kg', dec:1, betterWhen:'up',
+      explain:[
+        'Tudo que não é gordura: músculos, ossos, órgãos e água. Derivada aqui como peso × (1 − %gordura).',
+        'Em um emagrecimento bem conduzido este número deve cair pouco (ou até subir com treino de força). Queda rápida de massa magra sugere déficit calórico agressivo demais ou proteína insuficiente.'
+      ]
+    },
+    {
+      key:'restingMetabolismKcal', name:'Metabolismo de repouso', unit:'kcal/dia', dec:0, betterWhen:'up',
+      explain:[
+        'Estimativa de quantas calorias seu corpo gasta por dia em repouso absoluto, só para manter funções vitais. É a base do seu gasto energético total (que inclui ainda atividade física e digestão).',
+        'Útil para planejar déficit calórico: comer consistentemente abaixo do gasto total (repouso + atividade) gera perda de gordura. Mais massa muscular = metabolismo de repouso maior.'
+      ]
+    },
+    {
+      key:'bodyAge', name:'Idade corporal', unit:'anos', dec:0, betterWhen:'down',
+      classify:(v)=>{
+        if (!age) return null;
+        if (v <= age - 1) return { level:'normal', label:'Abaixo da idade real' };
+        if (v <= age + 1) return { level:'normal', label:'Igual à idade real' };
+        if (v <= age + 5) return { level:'alto', label:'Acima da idade real' };
+        return { level:'muitoAlto', label:'Bem acima da idade real' };
+      },
+      explain:[
+        'Síntese que a Omron calcula combinando peso, % de gordura, músculo e metabolismo, comparando com valores médios de cada idade. É um indicador motivacional, não um dado clínico.',
+        'A referência é a sua idade real' + (age ? ` (${age} anos)` : '') + ': idade corporal menor ou igual à real indica composição melhor que a média da sua faixa etária.'
+      ]
+    },
+  ];
+}
+
+/* ================= Acesso aos dados (GitHub Contents API) ================= */
+async function fetchData(){
+  const c = cfg.load();
+  const url = `https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/measurements.json`;
+  const res = await fetch(url, {
+    headers:{
+      'Authorization': `Bearer ${c.token}`,
+      'Accept': 'application/vnd.github.raw+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
+  });
+  if (res.status === 401) throw new Error('Token inválido ou expirado (HTTP 401). Gere um novo fine-grained PAT somente leitura e atualize nas configurações.');
+  if (res.status === 404) throw new Error('Arquivo measurements.json não encontrado (HTTP 404). Confira usuário/repositório, se o token tem acesso a ele, e se o app já sincronizou ao menos uma medição.');
+  if (!res.ok) throw new Error(`Falha ao consultar o GitHub (HTTP ${res.status}).`);
+  const arr = await res.json();
+  if (!Array.isArray(arr)) throw new Error('Formato inesperado em measurements.json (esperado: array).');
+  return normalize(arr);
+}
+
+function normalize(arr){
+  return arr
+    .filter(m => m && typeof m.timestamp === 'number')
+    .map(m => ({ ...m, leanBodyMassKg: m.leanBodyMassKg ?? m.weightKg * (1 - m.bodyFatPercent/100) }))
+    .sort((a,b) => a.timestamp - b.timestamp);
+}
+
+function demoData(){
+  const now = Date.now(), week = 7*24*3600*1000;
+  const base = [
+    [128.4, 37.1, 34.5, 29.8, 17, 2210, 54],
+    [127.6, 36.9, 34.1, 30.0, 17, 2198, 53],
+    [126.8, 36.6, 33.6, 30.3, 16, 2186, 53],
+    [126.1, 36.4, 33.2, 30.5, 16, 2177, 52],
+    [125.0, 36.1, 32.7, 30.8, 15, 2160, 51],
+    [124.4, 35.9, 32.2, 31.1, 15, 2151, 51],
+  ];
+  return normalize(base.map((r,i)=>({
+    timestamp: now - (base.length-1-i)*week,
+    weightKg:r[0], bmi:r[1], bodyFatPercent:r[2], skeletalMusclePercent:r[3],
+    visceralFatLevel:r[4], restingMetabolismKcal:r[5], bodyAge:r[6],
+  })));
+}
+
+/* ================= Render ================= */
+function status(msg, kind){
+  const box = $('statusBox');
+  if (!msg){ box.className = 'hidden'; box.textContent=''; return; }
+  box.className = 'notice' + (kind==='error' ? ' error' : '');
+  box.textContent = msg;
+}
+
+function currentAge(){
+  const c = cfg.load();
+  if (!c.birthYear) return null;
+  return new Date().getFullYear() - Number(c.birthYear);
+}
+
+function levelColor(def, level){
+  if (def && def.levelColorOverride && def.levelColorOverride[level]) return def.levelColorOverride[level];
+  return LEVELS[level].color;
+}
+
+function deltaHtml(def, cur, prev){
+  if (prev == null) return '';
+  const d = cur - prev;
+  if (Math.abs(d) < Math.pow(10, -def.dec)/2) return `<div class="mdelta">— sem variação desde a última</div>`;
+  const arrow = d > 0 ? '▲' : '▼';
+  const good = (d < 0 && def.betterWhen === 'down') || (d > 0 && def.betterWhen === 'up');
+  const cls = good ? 'delta ' + (d>0?'up good':'down') : 'delta ' + (d>0?'up':'down bad');
+  return `<div class="${cls} num">${arrow} ${fmtN(Math.abs(d), def.dec)} ${def.unit} desde a última medição</div>`;
+}
+
+function bandHtml(def, value){
+  if (!def.band) return '';
+  const b = def.band, span = b.max - b.min;
+  const stops = [b.min, ...b.cuts, b.max];
+  const segs = b.levels.map((lv,i)=>{
+    const w = ((stops[i+1]-stops[i]) / span * 100).toFixed(2);
+    return `<div class="band-seg" style="width:${w}%;background:${levelColor(def,lv)};opacity:.55"></div>`;
+  }).join('');
+  const pos = Math.min(100, Math.max(0, (value - b.min)/span*100)).toFixed(2);
+  const labels = b.labels.map(l=>`<span>${l}</span>`).join('');
+  return `<div class="band">
+    <div class="band-track">${segs}<div class="band-marker" style="left:${pos}%"></div></div>
+    <div class="band-labels num">${labels}</div>
+  </div>`;
+}
+
+function render(){
+  const data = state.data;
+  if (!data.length) return;
+  const last = data[data.length-1];
+  const prev = data.length > 1 ? data[data.length-2] : null;
+  const c = cfg.load();
+  const age = currentAge();
+  const defs = metricDefs(c.sex || 'M', age || 45);
+
+  $('lastSync').textContent = (state.demo ? 'Dados de exemplo · ' : '') +
+    `${data.length} medições · última em ${fmtDateTime(last.timestamp)}`;
+
+  /* hero */
+  const dWeight = prev ? last.weightKg - prev.weightKg : null;
+  const dFat = prev ? last.bodyFatPercent - prev.bodyFatPercent : null;
+  const first = data[0];
+  const totalD = last.weightKg - first.weightKg;
+  $('hero').innerHTML = `
+    <div class="cell">
+      <div class="lbl">Peso atual</div>
+      <div class="big num">${fmtN(last.weightKg)}<span class="unit"> kg</span></div>
+      ${dWeight!=null ? `<div class="delta num ${dWeight<0?'down':dWeight>0?'up':'flat'}">${dWeight<0?'▼':dWeight>0?'▲':'—'} ${fmtN(Math.abs(dWeight))} kg desde a última</div>` : ''}
+    </div>
+    <div class="cell">
+      <div class="lbl">Gordura corporal</div>
+      <div class="mid num">${fmtN(last.bodyFatPercent)}<span class="unit"> %</span></div>
+      ${dFat!=null ? `<div class="delta num ${dFat<0?'down':dFat>0?'up':'flat'}">${dFat<0?'▼':dFat>0?'▲':'—'} ${fmtN(Math.abs(dFat))} pp</div>` : ''}
+    </div>
+    <div class="cell">
+      <div class="lbl">Desde o início</div>
+      <div class="mid num">${totalD<=0?'−':'+'}${fmtN(Math.abs(totalD))}<span class="unit"> kg</span></div>
+      <div class="delta flat num">${fmtDate(first.timestamp)} → hoje</div>
+    </div>`;
+  $('hero').classList.remove('hidden');
+
+  /* cards */
+  $('metricsDate').textContent = fmtDateTime(last.timestamp);
+  $('metricsGrid').innerHTML = defs.map(def=>{
+    const v = last[def.key];
+    const cl = def.classify ? def.classify(v) : null;
+    const chip = cl ? `<span class="chip" style="background:${levelColor(def, cl.level)}">${cl.label}</span>` : '';
+    return `<article class="mcard">
+      <div class="mcard-top"><span class="name">${def.name}</span><span class="spacer"></span>${chip}</div>
+      <div class="val num">${fmtN(v, def.dec)}<span class="unit"> ${def.unit}</span></div>
+      ${deltaHtml(def, v, prev ? prev[def.key] : null)}
+      ${bandHtml(def, v)}
+      <details class="explain"><summary>O que significa</summary>${def.explain.map(p=>`<p>${p}</p>`).join('')}</details>
+    </article>`;
+  }).join('');
+  $('secMetrics').classList.remove('hidden');
+
+  renderChartSection(defs);
+  renderBody(last, c.sex || 'M', age || 45, defs);
+  $('secChart').classList.remove('hidden');
+  $('secBody').classList.remove('hidden');
+}
+
+/* ---------- gráfico ---------- */
+let chart = null, chartKey = 'weightKg';
+function renderChartSection(defs){
+  $('chartChips').innerHTML = defs.map(d=>
+    `<button data-key="${d.key}" aria-pressed="${d.key===chartKey}">${d.name}</button>`).join('');
+  $('chartChips').querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{ chartKey = b.dataset.key; renderChartSection(defs); });
+  });
+  drawChart(defs.find(d=>d.key===chartKey));
+}
+
+function drawChart(def){
+  const data = state.data;
+  const labels = data.map(m=>fmtDate(m.timestamp));
+  const values = data.map(m=>m[def.key]);
+  if (chart) chart.destroy();
+  chart = new Chart($('chart'), {
+    type:'line',
+    data:{ labels, datasets:[{
+      label:`${def.name}${def.unit ? ' ('+def.unit+')' : ''}`,
+      data:values,
+      borderColor:'#0E6BA8', backgroundColor:'rgba(14,107,168,.10)',
+      fill:true, tension:.25, pointRadius:4, pointHoverRadius:6,
+      pointBackgroundColor:'#0E6BA8', borderWidth:2.5,
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ labels:{ font:{ family:"'IBM Plex Sans'" } } },
+        tooltip:{ callbacks:{ label:(ctx)=>` ${fmtN(ctx.parsed.y, def.dec)} ${def.unit}` } }
+      },
+      scales:{
+        y:{ ticks:{ font:{ family:"'IBM Plex Sans'" }, callback:(v)=>fmtN(v, def.dec) }, grid:{ color:'#E4EBF0' } },
+        x:{ ticks:{ font:{ family:"'IBM Plex Sans'" }, maxRotation:0, autoSkip:true }, grid:{ display:false } }
+      }
+    }
+  });
+}
+
+/* ---------- corpo ---------- */
+function renderBody(last, sex, age, defs){
+  const visc = last.visceralFatLevel;
+  const fat = last.bodyFatPercent;
+
+  /* visceral: raio e opacidade escalam com o nível 1–30 */
+  const vScale = Math.min(1, Math.max(0.15, visc/30));
+  const vb = $('viscBlob');
+  vb.setAttribute('rx', (16 + 26*vScale).toFixed(1));
+  vb.setAttribute('ry', (18 + 30*vScale).toFixed(1));
+  vb.style.opacity = (0.45 + 0.55*vScale).toFixed(2);
+
+  /* subcutânea: mancha geral escala com o % de gordura (5–50%) */
+  const sScale = Math.min(1, Math.max(0.1, (fat-5)/45));
+  const sb = $('subcBlob');
+  sb.setAttribute('rx', (30 + 32*sScale).toFixed(1));
+  sb.setAttribute('ry', (44 + 46*sScale).toFixed(1));
+  sb.style.opacity = (0.35 + 0.5*sScale).toFixed(2);
+
+  const vc = classifyVisceral(visc);
+  $('legendVisc').textContent = `Gordura visceral — nível ${visc} (${vc.label.toLowerCase()})`;
+  $('legendSubc').textContent = `Gordura subcutânea — ${fmtN(fat)}% de gordura total`;
+
+  const patternText = sex === 'F'
+    ? 'Em mulheres o padrão típico (ginoide) concentra gordura subcutânea em quadris e coxas; após a menopausa a distribuição tende a migrar para o abdômen.'
+    : 'Em homens o padrão típico (androide) concentra gordura no abdômen — tanto subcutânea (sob a pele, a que se belisca) quanto visceral (interna, ao redor dos órgãos).';
+
+  $('bodyText').innerHTML = `
+    <div class="panel">
+      <h2>Como ler esta silhueta</h2>
+      <p class="hint" style="margin-bottom:8px">
+        A mancha <strong style="color:var(--warn)">laranja/vermelha</strong> representa o nível de gordura
+        <strong>visceral</strong> (${visc} de 30) — profunda, na cavidade abdominal. A mancha
+        <strong style="color:var(--blue)">azul</strong> representa a gordura <strong>subcutânea</strong>,
+        proporcional ao seu % de gordura total (${fmtN(fat)}%). Quanto maiores e mais intensas, maiores os índices.
+      </p>
+      <p class="hint" style="margin-bottom:0">${patternText}</p>
+    </div>
+    <div class="disclaimer">
+      <strong>Honestidade técnica:</strong> a HBF-514C mede por bioimpedância e estima valores
+      <em>globais</em> — ela não localiza a gordura ponto a ponto pelo corpo. O único dado regional
+      que ela fornece é o índice de gordura visceral (abdominal). Esta silhueta é uma representação
+      proporcional desses índices, não um mapa medido. Para mapeamento real por segmento, seria
+      necessário um exame como DEXA ou uma balança segmental profissional.
+    </div>`;
+}
+
+/* ================= Setup / eventos ================= */
+function openSettings(){
+  const c = cfg.load();
+  $('fOwner').value = c.owner || '';
+  $('fRepo').value = c.repo || 'omron-data';
+  $('fToken').value = c.token || '';
+  $('fSex').value = c.sex || 'M';
+  $('fBirth').value = c.birthYear || '';
+  $('setupPanel').classList.remove('hidden');
+  $('fOwner').focus();
+}
+
+async function loadFromGitHub(){
+  status('Carregando medições do GitHub…');
+  try {
+    state.data = await fetchData();
+    state.demo = false;
+    if (!state.data.length){
+      status('O arquivo existe, mas ainda não tem medições. Registre uma no app e sincronize.', 'error');
+      return;
+    }
+    status(null);
+    $('setupPanel').classList.add('hidden');
+    render();
+  } catch(e){
+    status(e.message, 'error');
+  }
+}
+
+$('btnSettings').addEventListener('click', openSettings);
+$('btnRefresh').addEventListener('click', ()=>{
+  const c = cfg.load();
+  if (c.owner && c.repo && c.token) loadFromGitHub();
+  else openSettings();
+});
+$('btnSave').addEventListener('click', ()=>{
+  cfg.save({
+    owner: $('fOwner').value.trim(),
+    repo: $('fRepo').value.trim(),
+    token: $('fToken').value.trim(),
+    sex: $('fSex').value,
+    birthYear: $('fBirth').value ? Number($('fBirth').value) : null,
+  });
+  loadFromGitHub();
+});
+$('btnDemo').addEventListener('click', ()=>{
+  const c = cfg.load();
+  cfg.save({ ...c, sex: $('fSex').value, birthYear: $('fBirth').value ? Number($('fBirth').value) : c.birthYear });
+  state.data = demoData();
+  state.demo = true;
+  status(null);
+  $('setupPanel').classList.add('hidden');
+  render();
+});
+
+/* boot */
+(function(){
+  const c = cfg.load();
+  if (c.owner && c.repo && c.token) loadFromGitHub();
+  else openSettings();
+})();
+
+</script>
+</body>
+</html>

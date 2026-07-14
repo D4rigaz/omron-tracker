@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.darigaz.omrontracker.data.AppDatabase
 import com.darigaz.omrontracker.data.Measurement
+import com.darigaz.omrontracker.github.GitHubSyncManager
 import com.darigaz.omrontracker.health.HealthConnectManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,6 +30,7 @@ class MeasurementViewModel(app: Application) : AndroidViewModel(app) {
 
     private val dao = AppDatabase.get(app).measurementDao()
     val healthConnect = HealthConnectManager(app)
+    val gitHub = GitHubSyncManager(app)
 
     private val _form = MutableStateFlow(FormState())
     val form: StateFlow<FormState> = _form
@@ -93,31 +95,59 @@ class MeasurementViewModel(app: Application) : AndroidViewModel(app) {
             _form.value = _form.value.copy(saving = true, errors = emptyMap())
 
             val id = dao.insert(measurement)
+            var saved = measurement.copy(id = id)
 
-            val result = try {
+            val hcResult = try {
                 if (healthConnect.isAvailable() && healthConnect.hasAllPermissions()) {
-                    healthConnect.insertMeasurement(measurement)
-                    dao.update(measurement.copy(id = id, syncedToHealthConnect = true))
-                    "Salvo e enviado ao Health Connect ✓"
+                    healthConnect.insertMeasurement(saved)
+                    saved = saved.copy(syncedToHealthConnect = true)
+                    dao.update(saved)
+                    "Health Connect ✓"
                 } else {
-                    "Salvo localmente (Health Connect indisponível ou sem permissão)"
+                    "Health Connect indisponível"
                 }
             } catch (e: Exception) {
-                "Salvo localmente. Falha no Health Connect: ${e.message}"
+                "Health Connect falhou: ${e.message}"
             }
+
+            val ghResult = try {
+                if (gitHub.isConfigured()) {
+                    // Aproveita para enviar tudo que estiver pendente
+                    val sent = gitHub.push(dao.pendingGitHubSync())
+                    sent.forEach { dao.update(it.copy(syncedToGitHub = true)) }
+                    "GitHub ✓"
+                } else {
+                    null // não configurado: não polui a mensagem
+                }
+            } catch (e: Exception) {
+                "GitHub falhou: ${e.message?.take(80)}"
+            }
+
+            val result = listOfNotNull("Salvo localmente", hcResult, ghResult)
+                .joinToString(" · ")
 
             _form.value = FormState(lastResult = result)
         }
     }
 
-    /** Reenvia medições que ficaram pendentes de sync. */
+    /** Reenvia medições que ficaram pendentes de sync (Health Connect e GitHub). */
     fun syncPending() {
         viewModelScope.launch {
-            if (!healthConnect.isAvailable() || !healthConnect.hasAllPermissions()) return@launch
-            dao.pendingSync().forEach { m ->
+            if (healthConnect.isAvailable() && healthConnect.hasAllPermissions()) {
+                dao.pendingSync().forEach { m ->
+                    try {
+                        healthConnect.insertMeasurement(m)
+                        dao.update(m.copy(syncedToHealthConnect = true))
+                    } catch (_: Exception) {
+                        // mantém pendente; tenta na próxima
+                    }
+                }
+            }
+
+            if (gitHub.isConfigured()) {
                 try {
-                    healthConnect.insertMeasurement(m)
-                    dao.update(m.copy(syncedToHealthConnect = true))
+                    val sent = gitHub.push(dao.pendingGitHubSync())
+                    sent.forEach { dao.update(it.copy(syncedToGitHub = true)) }
                 } catch (_: Exception) {
                     // mantém pendente; tenta na próxima
                 }

@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.darigaz.omrontracker"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.darigaz.omrontracker"

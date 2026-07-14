@@ -89,8 +89,42 @@ resumo mostra o valor atual, a variação no período (Δ) e a inclinação da
 tendência em unidade/semana. A função `linearRegression()` é pura e coberta
 facilmente por teste unitário.
 
+## Dashboard web (GitHub Pages)
+
+A pasta `docs/` contém uma página única (`index.html`) que consulta as medições
+de qualquer navegador, com explicação de cada métrica, faixas de referência
+Omron por sexo/idade, gráfico de evolução e silhueta com os índices de gordura
+visceral e subcutânea.
+
+### Arquitetura de dados (privacidade)
+
+```
+[App Android] --PUT--> [repo PRIVADO omron-data/measurements.json]
+[Página web (Pages, repo público)] --GET (token somente leitura)--^
+```
+
+Dados de saúde nunca ficam neste repositório público — apenas o código.
+
+### Setup
+
+1. **Repo de dados**: crie um repositório **privado** chamado `omron-data`.
+2. **Token do app** (escrita): GitHub → Settings → Developer settings →
+   Fine-grained tokens → repositório `omron-data` apenas, permissão
+   **Contents: Read and write**. Cole na aba **Config** do app Android.
+3. **Token da página** (leitura): outro fine-grained token, mesmo repositório,
+   permissão **Contents: Read-only**. A página pede na primeira visita e
+   guarda no navegador (localStorage).
+4. **GitHub Pages**: em Settings → Pages deste repositório, escolha
+   *Deploy from a branch* → `main` → `/docs`. A página fica em
+   `https://<usuario>.github.io/omron-tracker/`.
+
+O app grava `measurements.json` (array ordenado por timestamp, com dedupe)
+via Contents API; medições offline ficam pendentes (`syncedToGitHub = false`)
+e são reenviadas no próximo salvamento ou pelo botão de sincronizar.
+
 ## Próximos passos possíveis
 
 - Exportação CSV do histórico
+- Backup/rotação do measurements.json no repo de dados
 - Lembretes de pesagem semanal (WorkManager)
 - Backup do Room (Auto Backup já cobre o básico via `allowBackup`)

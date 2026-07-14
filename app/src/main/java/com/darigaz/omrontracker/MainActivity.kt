@@ -25,6 +25,7 @@ import androidx.health.connect.client.PermissionController
 import com.darigaz.omrontracker.ui.HistoryScreen
 import com.darigaz.omrontracker.ui.MeasurementFormScreen
 import com.darigaz.omrontracker.ui.MeasurementViewModel
+import com.darigaz.omrontracker.ui.SettingsScreen
 import com.darigaz.omrontracker.ui.TrendChartScreen
 
 class MainActivity : ComponentActivity() {
@@ -84,12 +85,14 @@ class MainActivity : ComponentActivity() {
                             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Nova medição") })
                             Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Histórico") })
                             Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("Tendência") })
+                            Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text("Config") })
                         }
 
                         when (tab) {
                             0 -> MeasurementFormScreen(viewModel)
                             1 -> HistoryScreen(viewModel)
                             2 -> TrendChartScreen(viewModel)
+                            3 -> SettingsScreen(viewModel)
                         }
                     }
                 }

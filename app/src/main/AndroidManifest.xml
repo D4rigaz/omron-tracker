@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Sync das medições com o repositório GitHub -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Permissões de ESCRITA no Health Connect (uma por tipo de dado) -->
     <uses-permission android:name="android.permission.health.WRITE_WEIGHT" />
     <uses-permission android:name="android.permission.health.WRITE_BODY_FAT" />
