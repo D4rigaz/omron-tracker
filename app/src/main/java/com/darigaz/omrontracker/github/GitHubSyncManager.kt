@@ -24,9 +24,10 @@ import java.nio.charset.StandardCharsets
  * leitura. Sem token configurado, o sync fica desativado silenciosamente
  * (mesmo padrão do Health Connect indisponível).
  *
- * Estratégia de merge: baixa o array atual, remove duplicatas por timestamp,
- * acrescenta as pendentes e regrava. Last-write-wins é aceitável aqui porque
- * só o app escreve no arquivo.
+ * Estratégia de merge: baixa o array atual, aplica exclusões pendentes,
+ * faz upsert das medições pendentes por timestamp (edições substituem a
+ * versão remota) e regrava. Last-write-wins é aceitável aqui porque cada
+ * arquivo tem um único escritor principal (o app daquela pessoa).
  */
 class GitHubSyncManager(context: Context) {
 
@@ -55,6 +56,24 @@ class GitHubSyncManager(context: Context) {
     fun isConfigured(): Boolean =
         owner.isNotBlank() && repo.isNotBlank() && token.isNotBlank()
 
+    /* ---- exclusões pendentes (sobrevivem a ficar offline) ---- */
+
+    fun markDeleted(timestamp: Long) {
+        val set = (prefs.getStringSet("pendingDeletions", emptySet()) ?: emptySet()).toMutableSet()
+        set.add(timestamp.toString())
+        prefs.edit().putStringSet("pendingDeletions", set).apply()
+    }
+
+    fun hasPendingWork(pendingUpserts: Boolean): Boolean =
+        pendingUpserts || pendingDeletions().isNotEmpty()
+
+    private fun pendingDeletions(): Set<Long> =
+        (prefs.getStringSet("pendingDeletions", emptySet()) ?: emptySet())
+            .mapNotNull { it.toLongOrNull() }.toSet()
+
+    private fun clearDeletions() =
+        prefs.edit().remove("pendingDeletions").apply()
+
     private val fileUrl: String
         get() = "https://api.github.com/repos/$owner/$repo/contents/$fileName"
 
@@ -65,29 +84,31 @@ class GitHubSyncManager(context: Context) {
      */
     suspend fun push(pending: List<Measurement>): List<Measurement> =
         withContext(Dispatchers.IO) {
-            if (pending.isEmpty() || !isConfigured()) return@withContext emptyList()
+            if (!isConfigured()) return@withContext emptyList()
+            val deletions = pendingDeletions()
+            if (pending.isEmpty() && deletions.isEmpty()) return@withContext emptyList()
 
             // 1) Estado atual do arquivo (404 = primeira gravação)
             val current = getFile()
             val existing = current?.second ?: JSONArray()
 
-            // 2) Merge com dedupe por timestamp
-            val seen = HashSet<Long>()
-            val merged = ArrayList<JSONObject>(existing.length() + pending.size)
+            // 2) Merge: exclusões primeiro, depois upsert por timestamp
+            //    (medição editada substitui a versão remota)
+            val map = LinkedHashMap<Long, JSONObject>()
             for (i in 0 until existing.length()) {
                 val obj = existing.getJSONObject(i)
-                if (seen.add(obj.getLong("timestamp"))) merged.add(obj)
+                map[obj.getLong("timestamp")] = obj
             }
-            for (m in pending) {
-                if (seen.add(m.timestamp)) merged.add(m.toJson())
-            }
-            merged.sortBy { it.getLong("timestamp") }
+            deletions.forEach { map.remove(it) }
+            pending.forEach { map[it.timestamp] = it.toJson() }
 
+            val merged = map.values.sortedBy { it.getLong("timestamp") }
             val newArray = JSONArray()
             merged.forEach { newArray.put(it) }
 
             // 3) Regrava (sha obrigatório quando o arquivo já existe)
             putFile(newArray.toString(2), current?.first)
+            clearDeletions()
             pending
         }
 

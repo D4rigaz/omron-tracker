@@ -24,6 +24,8 @@ data class FormState(
     val errors: Map<String, String> = emptyMap(),
     val saving: Boolean = false,
     val lastResult: String? = null,
+    /** Medição sendo editada (null = criando nova). */
+    val editing: Measurement? = null,
 )
 
 class MeasurementViewModel(app: Application) : AndroidViewModel(app) {
@@ -48,6 +50,49 @@ class MeasurementViewModel(app: Application) : AndroidViewModel(app) {
             "restingMetabolism" -> _form.value.copy(restingMetabolism = value)
             "bodyAge" -> _form.value.copy(bodyAge = value)
             else -> _form.value
+        }
+    }
+
+    /** Carrega uma medição existente no formulário para edição. */
+    fun startEdit(m: Measurement) {
+        _form.value = FormState(
+            weight = m.weightKg.toString(),
+            bmi = m.bmi.toString(),
+            bodyFat = m.bodyFatPercent.toString(),
+            skeletalMuscle = m.skeletalMusclePercent.toString(),
+            visceralFat = m.visceralFatLevel.toString(),
+            restingMetabolism = m.restingMetabolismKcal.toString(),
+            bodyAge = m.bodyAge.toString(),
+            editing = m,
+        )
+    }
+
+    fun cancelEdit() {
+        _form.value = FormState()
+    }
+
+    /** Exclui uma medição do Room, do GitHub e do Health Connect. */
+    fun delete(m: Measurement) {
+        viewModelScope.launch {
+            dao.delete(m)
+
+            try {
+                if (healthConnect.isAvailable() && healthConnect.hasAllPermissions()) {
+                    healthConnect.deleteMeasurement(m)
+                }
+            } catch (_: Exception) {
+                // best-effort: HC pode não ter os registros
+            }
+
+            if (gitHub.isConfigured()) {
+                gitHub.markDeleted(m.timestamp)
+                try {
+                    val sent = gitHub.push(dao.pendingGitHubSync())
+                    sent.forEach { dao.update(it.copy(syncedToGitHub = true)) }
+                } catch (_: Exception) {
+                    // exclusão fica pendente; aplicada no próximo sync
+                }
+            }
         }
     }
 
@@ -81,7 +126,12 @@ class MeasurementViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
 
-        val measurement = Measurement(
+        val original = f.editing
+        val measurement = (original ?: Measurement(
+            weightKg = 0.0, bmi = 0.0, bodyFatPercent = 0.0,
+            skeletalMusclePercent = 0.0, visceralFatLevel = 0,
+            restingMetabolismKcal = 0, bodyAge = 0,
+        )).copy(
             weightKg = f.weight.replace(',', '.').toDouble(),
             bmi = f.bmi.replace(',', '.').toDouble(),
             bodyFatPercent = f.bodyFat.replace(',', '.').toDouble(),
@@ -89,16 +139,27 @@ class MeasurementViewModel(app: Application) : AndroidViewModel(app) {
             visceralFatLevel = f.visceralFat.replace(',', '.').toDouble().toInt(),
             restingMetabolismKcal = f.restingMetabolism.replace(',', '.').toDouble().toInt(),
             bodyAge = f.bodyAge.replace(',', '.').toDouble().toInt(),
+            syncedToHealthConnect = false,
+            syncedToGitHub = false,
         )
 
         viewModelScope.launch {
             _form.value = _form.value.copy(saving = true, errors = emptyMap())
 
-            val id = dao.insert(measurement)
-            var saved = measurement.copy(id = id)
+            var saved = if (original == null) {
+                val id = dao.insert(measurement)
+                measurement.copy(id = id)
+            } else {
+                dao.update(measurement)
+                measurement
+            }
 
             val hcResult = try {
                 if (healthConnect.isAvailable() && healthConnect.hasAllPermissions()) {
+                    if (original != null) {
+                        // edição: remove os registros antigos antes de regravar
+                        healthConnect.deleteMeasurement(original)
+                    }
                     healthConnect.insertMeasurement(saved)
                     saved = saved.copy(syncedToHealthConnect = true)
                     dao.update(saved)
@@ -123,7 +184,8 @@ class MeasurementViewModel(app: Application) : AndroidViewModel(app) {
                 "GitHub falhou: ${e.message?.take(80)}"
             }
 
-            val result = listOfNotNull("Salvo localmente", hcResult, ghResult)
+            val prefix = if (original == null) "Salvo localmente" else "Edição salva"
+            val result = listOfNotNull(prefix, hcResult, ghResult)
                 .joinToString(" · ")
 
             _form.value = FormState(lastResult = result)

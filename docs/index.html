@@ -216,6 +216,30 @@ details.explain p+p{margin-top:6px}
   padding:8px 12px;background:#FBF6EC;border-radius:0 8px 8px 0;margin-top:8px;
 }
 
+/* ---------- histórico ---------- */
+.table-wrap{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow-x:auto;
+}
+table.hist{width:100%;border-collapse:collapse;font-size:13px;min-width:720px}
+table.hist th,table.hist td{padding:10px 12px;text-align:right;white-space:nowrap}
+table.hist th:first-child,table.hist td:first-child{text-align:left;position:sticky;left:0;background:inherit}
+table.hist thead th{
+  font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  color:var(--ink-soft);border-bottom:1px solid var(--line);background:var(--surface);
+}
+table.hist tbody tr{background:var(--surface);cursor:pointer;transition:background .12s}
+table.hist tbody tr:nth-child(even){background:#F7FAFC}
+table.hist tbody tr:hover{background:#EDF4F9}
+table.hist tbody tr.selected{background:#E3EFF7;box-shadow:inset 3px 0 0 var(--blue)}
+table.hist tbody tr:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+table.hist td{border-bottom:1px solid #EEF3F6}
+.viewing-note{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  margin:0 0 14px;padding:10px 14px;border-radius:10px;
+  background:#E3EFF7;border:1px solid #BFD8E9;color:var(--blue-deep);font-size:13.5px;font-weight:600;
+}
+
 footer{margin-top:44px;font-size:12px;color:var(--ink-soft);text-align:center}
 .hidden{display:none !important}
 @media (prefers-reduced-motion: no-preference){
@@ -257,6 +281,10 @@ footer{margin-top:44px;font-size:12px;color:var(--ink-soft);text-align:center}
       <div class="field"><label for="fRepo">Repositório de dados</label><input id="fRepo" autocomplete="off" placeholder="omron-data"></div>
     </div>
     <div class="field"><label for="fToken">Token (fine-grained PAT, somente leitura)</label><input id="fToken" type="password" autocomplete="off" placeholder="github_pat_…"></div>
+    <div class="field">
+      <label for="fWriteToken">Token de escrita (opcional — habilita excluir medições pela página)</label>
+      <input id="fWriteToken" type="password" autocomplete="off" placeholder="deixe vazio para manter a página somente leitura">
+    </div>
 
     <h2 style="margin-top:22px">Pessoas</h2>
     <p class="hint">
@@ -314,6 +342,19 @@ footer{margin-top:44px;font-size:12px;color:var(--ink-soft);text-align:center}
     <div class="sec-head"><h2>Evolução</h2><span class="sub">todas as medições registradas</span></div>
     <div class="chips" id="chartChips" role="group" aria-label="Escolher métrica do gráfico"></div>
     <div class="chart-panel"><div class="chart-box"><canvas id="chart"></canvas></div></div>
+  </section>
+
+  <!-- ===== Histórico ===== -->
+  <section class="hidden" id="secHistory">
+    <div class="sec-head"><h2>Histórico de pesagens</h2><span class="sub">toque em uma linha para consultar aquela medição</span></div>
+    <div class="table-wrap"><table class="hist">
+      <thead><tr>
+        <th>Data</th><th>Peso (kg)</th><th>IMC</th><th>Gordura (%)</th>
+        <th>Músculo (%)</th><th>Visceral</th><th>M. magra (kg)</th>
+        <th>Metab. (kcal)</th><th>Id. corporal</th><th id="thActions" class="hidden"></th>
+      </tr></thead>
+      <tbody id="historyBody"></tbody>
+    </table></div>
   </section>
 
   <!-- ===== Corpo ===== -->
@@ -410,7 +451,7 @@ function activeProfile(){
   return c.profiles.find(p => p.id === c.activeId) || c.profiles[0] || null;
 }
 
-let state = { data: [], demo: false };
+let state = { data: [], demo: false, selectedIndex: null };
 let editingId = null;
 
 const $ = (id) => document.getElementById(id);
@@ -648,8 +689,11 @@ function render(){
   const data = state.data;
   const p = activeProfile();
   if (!data.length || !p) return;
-  const last = data[data.length-1];
-  const prev = data.length > 1 ? data[data.length-2] : null;
+  const newest = data[data.length-1];
+  const idx = state.selectedIndex ?? data.length-1;
+  const viewingOld = idx !== data.length-1;
+  const last = data[idx];
+  const prev = idx > 0 ? data[idx-1] : null;
   const first = data[0];
   const age = profileAge(p);
   const defs = metricDefs(p.sex || 'M', age || 45);
@@ -657,7 +701,7 @@ function render(){
   renderProfileSelect();
 
   $('lastSync').textContent = (state.demo ? 'Dados de exemplo · ' : '') +
-    `${p.name} · ${data.length} medições · última em ${fmtDateTime(last.timestamp)}`;
+    `${p.name} · ${data.length} medições · última em ${fmtDateTime(newest.timestamp)}`;
 
   /* perfil */
   const initials = (p.name || '?').trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();
@@ -691,10 +735,10 @@ function render(){
   /* hero */
   const dWeight = prev ? last.weightKg - prev.weightKg : null;
   const dFat = prev ? last.bodyFatPercent - prev.bodyFatPercent : null;
-  const totalD = last.weightKg - first.weightKg;
+  const totalD = last.weightKg - first.weightKg; /* até a medição consultada */
   $('hero').innerHTML = `
     <div class="cell">
-      <div class="lbl">Peso atual</div>
+      <div class="lbl">${viewingOld ? 'Peso na data' : 'Peso atual'}</div>
       <div class="big num">${fmtN(last.weightKg)}<span class="unit"> kg</span></div>
       ${dWeight!=null ? `<div class="delta num ${dWeight<0?'down':dWeight>0?'up':'flat'}">${dWeight<0?'▼':dWeight>0?'▲':'—'} ${fmtN(Math.abs(dWeight))} kg desde a última</div>` : ''}
     </div>
@@ -706,13 +750,17 @@ function render(){
     <div class="cell">
       <div class="lbl">Desde o início</div>
       <div class="mid num">${totalD<=0?'−':'+'}${fmtN(Math.abs(totalD))}<span class="unit"> kg</span></div>
-      <div class="delta flat num">${fmtDate(first.timestamp)} → hoje</div>
+      <div class="delta flat num">${fmtDate(first.timestamp)} → ${viewingOld ? fmtDate(last.timestamp) : 'hoje'}</div>
     </div>`;
   $('hero').classList.remove('hidden');
 
   /* cards */
   $('metricsDate').textContent = fmtDateTime(last.timestamp);
-  $('metricsGrid').innerHTML = defs.map(def=>{
+  const note = viewingOld
+    ? `<div class="viewing-note">Consultando a medição de ${fmtDateTime(last.timestamp)}
+         <button class="btn small" id="btnBackNewest">Voltar à mais recente</button></div>`
+    : '';
+  $('metricsGrid').innerHTML = note + defs.map(def=>{
     const v = last[def.key];
     const cl = def.classify ? def.classify(v) : null;
     const chip = cl ? `<span class="chip" style="background:${levelColor(def, cl.level)}">${cl.label}</span>` : '';
@@ -724,12 +772,99 @@ function render(){
       <details class="explain"><summary>O que significa</summary>${def.explain.map(x=>`<p>${x}</p>`).join('')}</details>
     </article>`;
   }).join('');
+  const back = $('btnBackNewest');
+  if (back) back.addEventListener('click', ()=>{ state.selectedIndex = null; render();
+    $('secMetrics').scrollIntoView({behavior:'smooth'}); });
   $('secMetrics').classList.remove('hidden');
+
+  renderHistory();
+  $('secHistory').classList.remove('hidden');
 
   renderChartSection(defs);
   renderBody(last, p.sex || 'M', age || 45);
   $('secChart').classList.remove('hidden');
   $('secBody').classList.remove('hidden');
+}
+
+/* ---------- histórico de pesagens ---------- */
+function renderHistory(){
+  const data = state.data;
+  const idx = state.selectedIndex ?? data.length-1;
+  const canDelete = !!cfg.load().writeToken && !state.demo;
+  $('thActions').classList.toggle('hidden', !canDelete);
+  $('historyBody').innerHTML = data.map((m,i)=>({m,i})).reverse().map(({m,i})=>`
+    <tr class="num ${i===idx?'selected':''}" data-i="${i}" tabindex="0"
+        aria-label="Consultar medição de ${fmtDateTime(m.timestamp)}">
+      <td>${fmtDateTime(m.timestamp)}</td>
+      <td>${fmtN(m.weightKg)}</td>
+      <td>${fmtN(m.bmi)}</td>
+      <td>${fmtN(m.bodyFatPercent)}</td>
+      <td>${fmtN(m.skeletalMusclePercent)}</td>
+      <td>${m.visceralFatLevel}</td>
+      <td>${fmtN(m.leanBodyMassKg)}</td>
+      <td>${fmtN(m.restingMetabolismKcal,0)}</td>
+      <td>${fmtN(m.bodyAge,0)}</td>
+      ${canDelete ? `<td><button class="btn small danger" data-del="${m.timestamp}" title="Excluir esta medição">Excluir</button></td>` : ''}
+    </tr>`).join('');
+
+  $('historyBody').querySelectorAll('button[data-del]').forEach(b=>{
+    b.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      deleteRemote(Number(b.dataset.del));
+    });
+  });
+  $('historyBody').querySelectorAll('tr').forEach(tr=>{
+    const pick = ()=>{
+      const i = Number(tr.dataset.i);
+      state.selectedIndex = i === state.data.length-1 ? null : i;
+      render();
+      $('secMetrics').scrollIntoView({behavior:'smooth'});
+    };
+    tr.addEventListener('click', pick);
+    tr.addEventListener('keydown', (e)=>{ if (e.key==='Enter' || e.key===' '){ e.preventDefault(); pick(); } });
+  });
+}
+
+/* ---------- exclusão remota (requer token de escrita) ---------- */
+async function deleteRemote(timestamp){
+  const c = cfg.load();
+  const p = activeProfile();
+  if (!c.writeToken || !p) return;
+  const m = state.data.find(x=>x.timestamp===timestamp);
+  if (!m) return;
+  if (!confirm(`Excluir a medição de ${fmtDateTime(timestamp)} (${fmtN(m.weightKg)} kg) de ${p.name}?\n\nRemove do arquivo no GitHub — não remove do app no celular.`)) return;
+
+  status('Excluindo medição…');
+  try {
+    const url = `https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${encodeURIComponent(p.file)}`;
+    const headers = {
+      'Authorization': `Bearer ${c.writeToken}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+    const res = await fetch(url, { headers });
+    if (res.status === 401 || res.status === 404)
+      throw new Error('O token de escrita não tem acesso ao arquivo (HTTP ' + res.status + '). Confira se ele tem Contents: Read and write no repositório de dados.');
+    if (!res.ok) throw new Error(`Falha ao ler o arquivo (HTTP ${res.status}).`);
+    const meta = await res.json();
+    const arr = JSON.parse(atob(meta.content.replace(/\n/g, '')));
+    const filtered = arr.filter(x => x.timestamp !== timestamp);
+    if (filtered.length === arr.length)
+      throw new Error('Medição não encontrada no arquivo (talvez já removida). Toque em ↻ Atualizar.');
+
+    const put = await fetch(url, {
+      method:'PUT', headers,
+      body: JSON.stringify({
+        message: `Exclusão via página: ${new Date(timestamp).toISOString()}`,
+        content: btoa(JSON.stringify(filtered, null, 2)),
+        sha: meta.sha,
+      })
+    });
+    if (!put.ok) throw new Error(`Falha ao gravar (HTTP ${put.status}).`);
+    await loadActive();
+  } catch(e){
+    status(e.message, 'error');
+  }
 }
 
 /* ---------- seletor de perfil (cabeçalho) ---------- */
@@ -835,6 +970,7 @@ function openSettings(){
   $('fOwner').value = c.owner || '';
   $('fRepo').value = c.repo || 'omron-data';
   $('fToken').value = c.token || '';
+  $('fWriteToken').value = c.writeToken || '';
   renderProfileList();
   closePersonForm();
   $('setupPanel').classList.remove('hidden');
@@ -953,6 +1089,7 @@ async function loadActive(){
   try {
     state.data = await fetchData(p);
     state.demo = false;
+    state.selectedIndex = null;
     if (!state.data.length){
       status(`O arquivo ${p.file} existe, mas ainda não tem medições. Registre uma no app e sincronize.`, 'error');
       return;
@@ -975,6 +1112,7 @@ $('btnSaveConn').addEventListener('click', ()=>{
   c.owner = $('fOwner').value.trim();
   c.repo = $('fRepo').value.trim();
   c.token = $('fToken').value.trim();
+  c.writeToken = $('fWriteToken').value.trim();
   cfg.save(c);
   loadActive();
 });
@@ -984,6 +1122,7 @@ $('btnPersonCancel').addEventListener('click', closePersonForm);
 $('btnDemo').addEventListener('click', ()=>{
   state.data = demoData();
   state.demo = true;
+  state.selectedIndex = null;
   status(null);
   $('setupPanel').classList.add('hidden');
   if (!activeProfile()){

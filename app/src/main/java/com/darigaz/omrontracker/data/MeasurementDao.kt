@@ -1,6 +1,7 @@
 package com.darigaz.omrontracker.data
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
@@ -14,6 +15,9 @@ interface MeasurementDao {
 
     @Update
     suspend fun update(measurement: Measurement)
+
+    @Delete
+    suspend fun delete(measurement: Measurement)
 
     @Query("SELECT * FROM measurements ORDER BY timestamp DESC")
     fun observeAll(): Flow<List<Measurement>>

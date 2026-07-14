@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
 
                         when (tab) {
                             0 -> MeasurementFormScreen(viewModel)
-                            1 -> HistoryScreen(viewModel)
+                            1 -> HistoryScreen(viewModel, onEdit = { tab = 0 })
                             2 -> TrendChartScreen(viewModel)
                             3 -> SettingsScreen(viewModel)
                         }

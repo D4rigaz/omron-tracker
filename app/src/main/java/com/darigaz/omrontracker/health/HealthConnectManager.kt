@@ -8,6 +8,7 @@ import androidx.health.connect.client.records.BodyFatRecord
 import androidx.health.connect.client.records.LeanBodyMassRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.records.metadata.Metadata
+import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.health.connect.client.units.Mass
 import androidx.health.connect.client.units.Percentage
 import androidx.health.connect.client.units.Power
@@ -87,5 +88,19 @@ class HealthConnectManager(private val context: Context) {
         )
 
         client.insertRecords(records)
+    }
+
+    /**
+     * Remove do Health Connect os 4 registros de uma medição, pela janela de
+     * tempo (±1s do timestamp). Só apaga registros gravados por este app.
+     */
+    suspend fun deleteMeasurement(m: Measurement) {
+        val start = Instant.ofEpochMilli(m.timestamp).minusSeconds(1)
+        val end = Instant.ofEpochMilli(m.timestamp).plusSeconds(1)
+        val range = TimeRangeFilter.between(start, end)
+        client.deleteRecords(WeightRecord::class, range)
+        client.deleteRecords(BodyFatRecord::class, range)
+        client.deleteRecords(BasalMetabolicRateRecord::class, range)
+        client.deleteRecords(LeanBodyMassRecord::class, range)
     }
 }

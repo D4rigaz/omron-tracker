@@ -19,6 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
+private val formEditFormatter: java.time.format.DateTimeFormatter =
+    java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+        .withZone(java.time.ZoneId.systemDefault())
+
 @Composable
 fun MeasurementFormScreen(viewModel: MeasurementViewModel) {
     val form by viewModel.form.collectAsState()
@@ -30,7 +34,14 @@ fun MeasurementFormScreen(viewModel: MeasurementViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Nova medição — Omron HBF-514C", style = MaterialTheme.typography.titleLarge)
+        Text(
+            if (form.editing != null)
+                "Editando medição — " + formEditFormatter.format(
+                    java.time.Instant.ofEpochMilli(form.editing.timestamp)
+                )
+            else "Nova medição — Omron HBF-514C",
+            style = MaterialTheme.typography.titleLarge,
+        )
 
         NumberField("Peso (kg)", form.weight, form.errors["weight"]) {
             viewModel.onFieldChange("weight", it)
@@ -56,10 +67,16 @@ fun MeasurementFormScreen(viewModel: MeasurementViewModel) {
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { viewModel.save() }, enabled = !form.saving) {
-                Text(if (form.saving) "Salvando..." else "Salvar")
+                Text(if (form.saving) "Salvando..." else if (form.editing != null) "Salvar edição" else "Salvar")
             }
-            Button(onClick = { viewModel.syncPending() }) {
-                Text("Sincronizar pendentes")
+            if (form.editing != null) {
+                Button(onClick = { viewModel.cancelEdit() }) {
+                    Text("Cancelar edição")
+                }
+            } else {
+                Button(onClick = { viewModel.syncPending() }) {
+                    Text("Sincronizar pendentes")
+                }
             }
         }
 
