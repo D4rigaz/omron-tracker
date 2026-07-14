@@ -44,11 +44,19 @@ class GitHubSyncManager(context: Context) {
         get() = prefs.getString("token", "") ?: ""
         set(v) = prefs.edit().putString("token", v.trim()).apply()
 
+    /** Nome do arquivo desta pessoa no repo (um arquivo por pessoa). */
+    var fileName: String
+        get() = prefs.getString("fileName", "measurements.json") ?: "measurements.json"
+        set(v) {
+            val clean = v.trim().ifBlank { "measurements.json" }
+            prefs.edit().putString("fileName", clean).apply()
+        }
+
     fun isConfigured(): Boolean =
         owner.isNotBlank() && repo.isNotBlank() && token.isNotBlank()
 
     private val fileUrl: String
-        get() = "https://api.github.com/repos/$owner/$repo/contents/measurements.json"
+        get() = "https://api.github.com/repos/$owner/$repo/contents/$fileName"
 
     /**
      * Envia as medições pendentes. Retorna a lista das que foram gravadas

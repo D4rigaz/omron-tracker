@@ -118,7 +118,16 @@ Dados de saúde nunca ficam neste repositório público — apenas o código.
    *Deploy from a branch* → `main` → `/docs`. A página fica em
    `https://<usuario>.github.io/omron-tracker/`.
 
-O app grava `measurements.json` (array ordenado por timestamp, com dedupe)
+### Múltiplas pessoas (até 10)
+
+Cada pessoa tem seu próprio arquivo no repo de dados (ex:
+`measurements-renan.json`, `measurements-maria.json`) — configurado na aba
+**Config** do app Android do celular dela. Na página web, cadastre as pessoas
+em ⚙ Configurar → Pessoas (nome, sexo, ano de nascimento e altura definem as
+faixas de referência Omron de cada perfil) e troque entre elas pelo seletor
+no cabeçalho. O arquivo legado `measurements.json` continua funcionando.
+
+O app grava o arquivo configurado (array ordenado por timestamp, com dedupe)
 via Contents API; medições offline ficam pendentes (`syncedToGitHub = false`)
 e são reenviadas no próximo salvamento ou pelo botão de sincronizar.
 

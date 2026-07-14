@@ -88,6 +88,45 @@ header{
 @media(max-width:560px){.grid2{grid-template-columns:1fr}}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 
+/* ---------- seletor de pessoa (header) ---------- */
+#profileSelect{
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:9px;padding:8px 10px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
+  max-width:160px;
+}
+#profileSelect:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* ---------- lista de pessoas (configurações) ---------- */
+.prow{
+  display:flex;align-items:center;gap:8px;padding:10px 0;
+  border-bottom:1px dashed var(--line);flex-wrap:wrap;
+}
+.prow:last-child{border-bottom:none}
+.prow-info{flex:1;min-width:150px}
+.prow-name{font-weight:600;font-size:14px}
+.prow-meta{font-size:12px;color:var(--ink-soft)}
+.btn.small{padding:5px 10px;font-size:12.5px}
+.btn.danger{color:var(--alert)}
+.btn.danger:hover{border-color:var(--alert)}
+.person-form{
+  margin-top:14px;padding:14px;border:1px solid var(--line);
+  border-radius:10px;background:#F7FAFC;
+}
+.person-form h3{font-size:14px;margin-bottom:10px}
+
+/* ---------- perfil ---------- */
+.profile{
+  margin-top:20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:14px 18px;
+}
+.avatar{
+  width:42px;height:42px;border-radius:50%;background:var(--blue-deep);color:#fff;
+  display:grid;place-items:center;font-family:'Archivo';font-weight:800;font-size:17px;flex:none;
+}
+.profile .pname{font-family:'Archivo';font-weight:700;font-size:16px;letter-spacing:-.2px}
+.profile .pmeta{font-size:12.5px;color:var(--ink-soft)}
+
 /* ---------- hero ---------- */
 .hero{
   margin-top:22px;display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:14px;
@@ -194,6 +233,7 @@ footer{margin-top:44px;font-size:12px;color:var(--ink-soft);text-align:center}
       <div class="header-sub" id="lastSync">Sem dados carregados</div>
     </div>
     <div class="header-spacer"></div>
+    <select id="profileSelect" class="hidden" aria-label="Trocar de pessoa"></select>
     <button class="btn" id="btnRefresh" title="Recarregar do GitHub">↻ Atualizar</button>
     <button class="btn" id="btnSettings">⚙ Configurar</button>
   </div>
@@ -207,7 +247,7 @@ footer{margin-top:44px;font-size:12px;color:var(--ink-soft);text-align:center}
   <div class="panel hidden" id="setupPanel">
     <h2>Conexão com os dados</h2>
     <p class="hint">
-      A página lê o arquivo <code>measurements.json</code> de um repositório <strong>privado</strong>
+      A página lê os arquivos de medição de um repositório <strong>privado</strong>
       via API do GitHub. Use um fine-grained PAT <strong>somente leitura</strong>
       (Contents: Read-only) restrito a esse repositório. O token fica salvo apenas
       neste navegador.
@@ -217,18 +257,48 @@ footer{margin-top:44px;font-size:12px;color:var(--ink-soft);text-align:center}
       <div class="field"><label for="fRepo">Repositório de dados</label><input id="fRepo" autocomplete="off" placeholder="omron-data"></div>
     </div>
     <div class="field"><label for="fToken">Token (fine-grained PAT, somente leitura)</label><input id="fToken" type="password" autocomplete="off" placeholder="github_pat_…"></div>
-    <div class="grid2">
-      <div class="field">
-        <label for="fSex">Sexo (para faixas de referência Omron)</label>
-        <select id="fSex"><option value="M">Masculino</option><option value="F">Feminino</option></select>
-      </div>
-      <div class="field"><label for="fBirth">Ano de nascimento</label><input id="fBirth" type="number" min="1930" max="2010" placeholder="1985"></div>
+
+    <h2 style="margin-top:22px">Pessoas</h2>
+    <p class="hint">
+      Cada pessoa tem seu próprio arquivo de medições no repositório — o mesmo nome
+      deve estar configurado no app Android do celular dela. Até 10 pessoas.
+    </p>
+    <div id="profileList"></div>
+    <p class="hint hidden" id="maxMsg" style="margin-top:10px">Limite de 10 pessoas atingido.</p>
+    <div class="row" style="margin-top:12px">
+      <button class="btn" id="btnAddPerson">+ Adicionar pessoa</button>
     </div>
-    <div class="row">
-      <button class="btn primary" id="btnSave">Salvar e carregar dados</button>
+
+    <div class="person-form hidden" id="personForm">
+      <h3 id="personFormTitle">Adicionar pessoa</h3>
+      <div class="grid2">
+        <div class="field"><label for="pName">Nome</label><input id="pName" autocomplete="off" placeholder="Maria"></div>
+        <div class="field"><label for="pFile">Arquivo no repositório (deixe vazio para gerar)</label><input id="pFile" autocomplete="off" placeholder="measurements-maria.json"></div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="pSex">Sexo (faixas de referência Omron)</label>
+          <select id="pSex"><option value="M">Masculino</option><option value="F">Feminino</option></select>
+        </div>
+        <div class="field"><label for="pBirth">Ano de nascimento</label><input id="pBirth" type="number" min="1930" max="2015" placeholder="1985"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label for="pHeight">Altura (cm)</label><input id="pHeight" type="number" min="120" max="230" step="0.5" placeholder="186"></div>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="btnPersonSave">Salvar pessoa</button>
+        <button class="btn" id="btnPersonCancel">Cancelar</button>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
+      <button class="btn primary" id="btnSaveConn">Salvar conexão e carregar</button>
       <button class="btn" id="btnDemo">Ver com dados de exemplo</button>
     </div>
   </div>
+
+  <!-- ===== Perfil ===== -->
+  <div class="profile hidden" id="profile"></div>
 
   <!-- ===== Hero ===== -->
   <div class="hero hidden" id="hero"></div>
@@ -302,12 +372,46 @@ footer{margin-top:44px;font-size:12px;color:var(--ink-soft);text-align:center}
 
 /* ================= Configurações (localStorage) ================= */
 const CFG_KEY = 'omron-tracker-cfg';
+const MAX_PROFILES = 10;
+
 const cfg = {
-  load(){ try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch(e){ return {}; } },
+  load(){
+    let c;
+    try { c = JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch(e){ c = {}; }
+    /* migração do formato antigo (pessoa única) para perfis */
+    if (!Array.isArray(c.profiles)) {
+      const legacy = {
+        id: uid(),
+        name: c.name || 'Perfil 1',
+        file: 'measurements.json',
+        sex: c.sex || 'M',
+        birthYear: c.birthYear || null,
+        heightCm: c.heightCm || null,
+      };
+      c = {
+        owner: c.owner || '', repo: c.repo || '', token: c.token || '',
+        profiles: (c.owner || c.token) ? [legacy] : [],
+        activeId: (c.owner || c.token) ? legacy.id : null,
+      };
+      localStorage.setItem(CFG_KEY, JSON.stringify(c));
+    }
+    return c;
+  },
   save(o){ localStorage.setItem(CFG_KEY, JSON.stringify(o)); }
 };
 
+function uid(){ return 'p' + Math.random().toString(36).slice(2, 9); }
+function slug(name){
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'pessoa';
+}
+function activeProfile(){
+  const c = cfg.load();
+  return c.profiles.find(p => p.id === c.activeId) || c.profiles[0] || null;
+}
+
 let state = { data: [], demo: false };
+let editingId = null;
 
 const $ = (id) => document.getElementById(id);
 const fmtN = (v, d=1) => v.toLocaleString('pt-BR', {minimumFractionDigits:d, maximumFractionDigits:d});
@@ -345,14 +449,12 @@ function muscleRanges(sex, age){
   return [32.9, 39.0, 43.7];
 }
 
-/* Classifica um valor contra cortes [c1,c2,c3] => 4 níveis. */
 function classify4(v, cuts, names){
   if (v < cuts[0]) return names[0];
   if (v < cuts[1]) return names[1];
   if (v < cuts[2]) return names[2];
   return names[3];
 }
-
 function classifyBMI(v){
   if (v < 18.5) return { level:'baixo', label:'Abaixo do peso' };
   if (v < 25)   return { level:'normal', label:'Peso normal' };
@@ -397,7 +499,7 @@ function metricDefs(sex, age){
                        label: LEVELS[classify4(v, fr, ['baixo','normal','alto','muitoAlto'])].label }),
       explain:[
         'Percentual do peso total que é gordura (subcutânea + visceral), estimado por bioimpedância: uma corrente elétrica imperceptível percorre o corpo e a resistência indica a proporção de gordura.',
-        'As faixas mostradas seguem a classificação da Omron para seu sexo e idade. A hidratação afeta a medida — meça sempre no mesmo horário e condição (ideal: ao acordar, após ir ao banheiro, antes de comer).'
+        'As faixas mostradas seguem a classificação da Omron para o sexo e a idade deste perfil. A hidratação afeta a medida — meça sempre no mesmo horário e condição (ideal: ao acordar, após ir ao banheiro, antes de comer).'
       ]
     },
     {
@@ -411,7 +513,7 @@ function metricDefs(sex, age){
       levelColorOverride:{ alto:'var(--ok)', muitoAlto:'var(--ok)' },
       explain:[
         'Percentual do peso composto por músculos esqueléticos — os que você treina e controla voluntariamente. Aqui, mais alto é melhor.',
-        'É o principal aliado no processo: mais músculo eleva o metabolismo de repouso e protege articulações no treino e na moto. Se o peso cai mas este % sobe, você está perdendo gordura, não massa magra.'
+        'É o principal aliado no processo: mais músculo eleva o metabolismo de repouso e protege as articulações. Se o peso cai mas este % sobe, a perda é de gordura, não de massa magra.'
       ]
     },
     {
@@ -434,7 +536,7 @@ function metricDefs(sex, age){
     {
       key:'restingMetabolismKcal', name:'Metabolismo de repouso', unit:'kcal/dia', dec:0, betterWhen:'up',
       explain:[
-        'Estimativa de quantas calorias seu corpo gasta por dia em repouso absoluto, só para manter funções vitais. É a base do seu gasto energético total (que inclui ainda atividade física e digestão).',
+        'Estimativa de quantas calorias o corpo gasta por dia em repouso absoluto, só para manter funções vitais. É a base do gasto energético total (que inclui ainda atividade física e digestão).',
         'Útil para planejar déficit calórico: comer consistentemente abaixo do gasto total (repouso + atividade) gera perda de gordura. Mais massa muscular = metabolismo de repouso maior.'
       ]
     },
@@ -449,16 +551,16 @@ function metricDefs(sex, age){
       },
       explain:[
         'Síntese que a Omron calcula combinando peso, % de gordura, músculo e metabolismo, comparando com valores médios de cada idade. É um indicador motivacional, não um dado clínico.',
-        'A referência é a sua idade real' + (age ? ` (${age} anos)` : '') + ': idade corporal menor ou igual à real indica composição melhor que a média da sua faixa etária.'
+        'A referência é a idade real do perfil' + (age ? ` (${age} anos)` : '') + ': idade corporal menor ou igual à real indica composição melhor que a média da faixa etária.'
       ]
     },
   ];
 }
 
 /* ================= Acesso aos dados (GitHub Contents API) ================= */
-async function fetchData(){
+async function fetchData(profile){
   const c = cfg.load();
-  const url = `https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/measurements.json`;
+  const url = `https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${encodeURIComponent(profile.file)}`;
   const res = await fetch(url, {
     headers:{
       'Authorization': `Bearer ${c.token}`,
@@ -467,10 +569,10 @@ async function fetchData(){
     }
   });
   if (res.status === 401) throw new Error('Token inválido ou expirado (HTTP 401). Gere um novo fine-grained PAT somente leitura e atualize nas configurações.');
-  if (res.status === 404) throw new Error('Arquivo measurements.json não encontrado (HTTP 404). Confira usuário/repositório, se o token tem acesso a ele, e se o app já sincronizou ao menos uma medição.');
+  if (res.status === 404) throw new Error(`Arquivo ${profile.file} não encontrado (HTTP 404). Confira se o app de ${profile.name} está configurado com esse nome de arquivo e já sincronizou ao menos uma medição — e se o token tem acesso ao repositório.`);
   if (!res.ok) throw new Error(`Falha ao consultar o GitHub (HTTP ${res.status}).`);
   const arr = await res.json();
-  if (!Array.isArray(arr)) throw new Error('Formato inesperado em measurements.json (esperado: array).');
+  if (!Array.isArray(arr)) throw new Error(`Formato inesperado em ${profile.file} (esperado: array).`);
   return normalize(arr);
 }
 
@@ -506,10 +608,9 @@ function status(msg, kind){
   box.textContent = msg;
 }
 
-function currentAge(){
-  const c = cfg.load();
-  if (!c.birthYear) return null;
-  return new Date().getFullYear() - Number(c.birthYear);
+function profileAge(p){
+  if (!p || !p.birthYear) return null;
+  return new Date().getFullYear() - Number(p.birthYear);
 }
 
 function levelColor(def, level){
@@ -545,20 +646,51 @@ function bandHtml(def, value){
 
 function render(){
   const data = state.data;
-  if (!data.length) return;
+  const p = activeProfile();
+  if (!data.length || !p) return;
   const last = data[data.length-1];
   const prev = data.length > 1 ? data[data.length-2] : null;
-  const c = cfg.load();
-  const age = currentAge();
-  const defs = metricDefs(c.sex || 'M', age || 45);
+  const first = data[0];
+  const age = profileAge(p);
+  const defs = metricDefs(p.sex || 'M', age || 45);
+
+  renderProfileSelect();
 
   $('lastSync').textContent = (state.demo ? 'Dados de exemplo · ' : '') +
-    `${data.length} medições · última em ${fmtDateTime(last.timestamp)}`;
+    `${p.name} · ${data.length} medições · última em ${fmtDateTime(last.timestamp)}`;
+
+  /* perfil */
+  const initials = (p.name || '?').trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();
+  const meta = [
+    p.heightCm ? `${fmtN(p.heightCm/100, 2)} m` : null,
+    age ? `${age} anos` : null,
+    (p.sex === 'F' ? 'Feminino' : 'Masculino'),
+  ].filter(Boolean).join(' · ');
+  $('profile').innerHTML = `
+    <div class="avatar" aria-hidden="true">${initials}</div>
+    <div>
+      <div class="pname">${p.name}</div>
+      <div class="pmeta num">${meta}</div>
+    </div>`;
+  $('profile').classList.remove('hidden');
+
+  /* com a altura, confere o IMC da balança contra o calculado */
+  if (p.heightCm) {
+    const h = p.heightCm / 100;
+    const calc = last.weightKg / (h*h);
+    const diff = Math.abs(calc - last.bmi);
+    const bmiDef = defs.find(d=>d.key==='bmi');
+    bmiDef.explain.push(
+      `Conferência com a altura do perfil (${fmtN(h,2)} m): peso atual ÷ altura² = ${fmtN(calc)}. ` +
+      (diff <= 0.5
+        ? 'Bate com o valor da balança ✓ — a altura cadastrada nela está correta.'
+        : `Difere do valor da balança em ${fmtN(diff)} — vale conferir se a altura cadastrada na HBF-514C está certa.`)
+    );
+  }
 
   /* hero */
   const dWeight = prev ? last.weightKg - prev.weightKg : null;
   const dFat = prev ? last.bodyFatPercent - prev.bodyFatPercent : null;
-  const first = data[0];
   const totalD = last.weightKg - first.weightKg;
   $('hero').innerHTML = `
     <div class="cell">
@@ -589,15 +721,25 @@ function render(){
       <div class="val num">${fmtN(v, def.dec)}<span class="unit"> ${def.unit}</span></div>
       ${deltaHtml(def, v, prev ? prev[def.key] : null)}
       ${bandHtml(def, v)}
-      <details class="explain"><summary>O que significa</summary>${def.explain.map(p=>`<p>${p}</p>`).join('')}</details>
+      <details class="explain"><summary>O que significa</summary>${def.explain.map(x=>`<p>${x}</p>`).join('')}</details>
     </article>`;
   }).join('');
   $('secMetrics').classList.remove('hidden');
 
   renderChartSection(defs);
-  renderBody(last, c.sex || 'M', age || 45, defs);
+  renderBody(last, p.sex || 'M', age || 45);
   $('secChart').classList.remove('hidden');
   $('secBody').classList.remove('hidden');
+}
+
+/* ---------- seletor de perfil (cabeçalho) ---------- */
+function renderProfileSelect(){
+  const c = cfg.load();
+  const sel = $('profileSelect');
+  if (c.profiles.length < 2){ sel.classList.add('hidden'); return; }
+  sel.innerHTML = c.profiles.map(p=>
+    `<option value="${p.id}" ${p.id===c.activeId?'selected':''}>${p.name}</option>`).join('');
+  sel.classList.remove('hidden');
 }
 
 /* ---------- gráfico ---------- */
@@ -641,20 +783,20 @@ function drawChart(def){
 }
 
 /* ---------- corpo ---------- */
-function renderBody(last, sex, age, defs){
+function renderBody(last, sex, age){
   const visc = last.visceralFatLevel;
   const fat = last.bodyFatPercent;
 
-  /* visceral: raio e opacidade escalam com o nível 1–30 */
   const vScale = Math.min(1, Math.max(0.15, visc/30));
   const vb = $('viscBlob');
   vb.setAttribute('rx', (16 + 26*vScale).toFixed(1));
   vb.setAttribute('ry', (18 + 30*vScale).toFixed(1));
   vb.style.opacity = (0.45 + 0.55*vScale).toFixed(2);
 
-  /* subcutânea: mancha geral escala com o % de gordura (5–50%) */
   const sScale = Math.min(1, Math.max(0.1, (fat-5)/45));
   const sb = $('subcBlob');
+  /* padrão ginoide: mancha subcutânea desce para quadril/coxas */
+  sb.setAttribute('cy', sex === 'F' ? 236 : 212);
   sb.setAttribute('rx', (30 + 32*sScale).toFixed(1));
   sb.setAttribute('ry', (44 + 46*sScale).toFixed(1));
   sb.style.opacity = (0.35 + 0.5*sScale).toFixed(2);
@@ -674,7 +816,7 @@ function renderBody(last, sex, age, defs){
         A mancha <strong style="color:var(--warn)">laranja/vermelha</strong> representa o nível de gordura
         <strong>visceral</strong> (${visc} de 30) — profunda, na cavidade abdominal. A mancha
         <strong style="color:var(--blue)">azul</strong> representa a gordura <strong>subcutânea</strong>,
-        proporcional ao seu % de gordura total (${fmtN(fat)}%). Quanto maiores e mais intensas, maiores os índices.
+        proporcional ao % de gordura total (${fmtN(fat)}%). Quanto maiores e mais intensas, maiores os índices.
       </p>
       <p class="hint" style="margin-bottom:0">${patternText}</p>
     </div>
@@ -687,25 +829,132 @@ function renderBody(last, sex, age, defs){
     </div>`;
 }
 
-/* ================= Setup / eventos ================= */
+/* ================= Painel de configurações ================= */
 function openSettings(){
   const c = cfg.load();
   $('fOwner').value = c.owner || '';
   $('fRepo').value = c.repo || 'omron-data';
   $('fToken').value = c.token || '';
-  $('fSex').value = c.sex || 'M';
-  $('fBirth').value = c.birthYear || '';
+  renderProfileList();
+  closePersonForm();
   $('setupPanel').classList.remove('hidden');
-  $('fOwner').focus();
 }
 
-async function loadFromGitHub(){
-  status('Carregando medições do GitHub…');
+function renderProfileList(){
+  const c = cfg.load();
+  const box = $('profileList');
+  if (!c.profiles.length){
+    box.innerHTML = `<p class="hint" style="margin:0">Nenhuma pessoa cadastrada ainda. Adicione a primeira abaixo.</p>`;
+  } else {
+    box.innerHTML = c.profiles.map(p=>{
+      const age = profileAge(p);
+      const meta = [
+        p.file,
+        p.sex === 'F' ? 'F' : 'M',
+        age ? `${age} anos` : null,
+        p.heightCm ? `${fmtN(p.heightCm/100,2)} m` : null,
+      ].filter(Boolean).join(' · ');
+      return `<div class="prow" data-id="${p.id}">
+        <div class="prow-info">
+          <div class="prow-name">${p.name}${p.id===c.activeId?' <span class="chip" style="background:var(--blue);vertical-align:1px">ativo</span>':''}</div>
+          <div class="prow-meta num">${meta}</div>
+        </div>
+        <button class="btn small" data-act="view">Ver</button>
+        <button class="btn small" data-act="edit">Editar</button>
+        <button class="btn small danger" data-act="del">Remover</button>
+      </div>`;
+    }).join('');
+  }
+  const full = c.profiles.length >= MAX_PROFILES;
+  $('btnAddPerson').classList.toggle('hidden', full);
+  $('maxMsg').classList.toggle('hidden', !full);
+
+  box.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const id = b.closest('.prow').dataset.id;
+      const act = b.dataset.act;
+      if (act === 'view'){ setActive(id); }
+      else if (act === 'edit'){ openPersonForm(id); }
+      else if (act === 'del'){ removeProfile(id); }
+    });
+  });
+}
+
+function setActive(id){
+  const c = cfg.load();
+  c.activeId = id;
+  cfg.save(c);
+  loadActive();
+}
+
+function removeProfile(id){
+  const c = cfg.load();
+  const p = c.profiles.find(x=>x.id===id);
+  if (!p) return;
+  if (!confirm(`Remover ${p.name} desta página? (as medições no GitHub não são apagadas)`)) return;
+  c.profiles = c.profiles.filter(x=>x.id!==id);
+  if (c.activeId === id) c.activeId = c.profiles[0] ? c.profiles[0].id : null;
+  cfg.save(c);
+  renderProfileList();
+}
+
+function openPersonForm(id){
+  editingId = id || null;
+  const p = id ? cfg.load().profiles.find(x=>x.id===id) : null;
+  $('personFormTitle').textContent = p ? `Editar ${p.name}` : 'Adicionar pessoa';
+  $('pName').value = p ? p.name : '';
+  $('pFile').value = p ? p.file : '';
+  $('pSex').value = p ? p.sex : 'M';
+  $('pBirth').value = p && p.birthYear ? p.birthYear : '';
+  $('pHeight').value = p && p.heightCm ? p.heightCm : '';
+  $('personForm').classList.remove('hidden');
+  $('pName').focus();
+}
+function closePersonForm(){
+  editingId = null;
+  $('personForm').classList.add('hidden');
+}
+
+function savePerson(){
+  const c = cfg.load();
+  const name = $('pName').value.trim();
+  if (!name){ $('pName').focus(); return; }
+  let file = $('pFile').value.trim();
+  if (!file) file = `measurements-${slug(name)}.json`;
+  if (!file.endsWith('.json')) file += '.json';
+
+  const data = {
+    name, file,
+    sex: $('pSex').value,
+    birthYear: $('pBirth').value ? Number($('pBirth').value) : null,
+    heightCm: $('pHeight').value ? Number($('pHeight').value) : null,
+  };
+
+  if (editingId){
+    const p = c.profiles.find(x=>x.id===editingId);
+    Object.assign(p, data);
+  } else {
+    if (c.profiles.length >= MAX_PROFILES) return;
+    const p = { id: uid(), ...data };
+    c.profiles.push(p);
+    if (!c.activeId) c.activeId = p.id;
+  }
+  cfg.save(c);
+  closePersonForm();
+  renderProfileList();
+}
+
+/* ================= Carregamento ================= */
+async function loadActive(){
+  const c = cfg.load();
+  const p = activeProfile();
+  if (!c.owner || !c.repo || !c.token || !p){ openSettings(); return; }
+  status(`Carregando medições de ${p.name}…`);
   try {
-    state.data = await fetchData();
+    state.data = await fetchData(p);
     state.demo = false;
     if (!state.data.length){
-      status('O arquivo existe, mas ainda não tem medições. Registre uma no app e sincronize.', 'error');
+      status(`O arquivo ${p.file} existe, mas ainda não tem medições. Registre uma no app e sincronize.`, 'error');
       return;
     }
     status(null);
@@ -713,39 +962,42 @@ async function loadFromGitHub(){
     render();
   } catch(e){
     status(e.message, 'error');
+    renderProfileSelect();
   }
 }
 
+/* ================= Eventos ================= */
 $('btnSettings').addEventListener('click', openSettings);
-$('btnRefresh').addEventListener('click', ()=>{
+$('btnRefresh').addEventListener('click', loadActive);
+$('profileSelect').addEventListener('change', (e)=> setActive(e.target.value));
+$('btnSaveConn').addEventListener('click', ()=>{
   const c = cfg.load();
-  if (c.owner && c.repo && c.token) loadFromGitHub();
-  else openSettings();
+  c.owner = $('fOwner').value.trim();
+  c.repo = $('fRepo').value.trim();
+  c.token = $('fToken').value.trim();
+  cfg.save(c);
+  loadActive();
 });
-$('btnSave').addEventListener('click', ()=>{
-  cfg.save({
-    owner: $('fOwner').value.trim(),
-    repo: $('fRepo').value.trim(),
-    token: $('fToken').value.trim(),
-    sex: $('fSex').value,
-    birthYear: $('fBirth').value ? Number($('fBirth').value) : null,
-  });
-  loadFromGitHub();
-});
+$('btnAddPerson').addEventListener('click', ()=>openPersonForm(null));
+$('btnPersonSave').addEventListener('click', savePerson);
+$('btnPersonCancel').addEventListener('click', closePersonForm);
 $('btnDemo').addEventListener('click', ()=>{
-  const c = cfg.load();
-  cfg.save({ ...c, sex: $('fSex').value, birthYear: $('fBirth').value ? Number($('fBirth').value) : c.birthYear });
   state.data = demoData();
   state.demo = true;
   status(null);
   $('setupPanel').classList.add('hidden');
+  if (!activeProfile()){
+    const c = cfg.load();
+    const p = { id: uid(), name:'Exemplo', file:'measurements.json', sex:'M', birthYear:1985, heightCm:186 };
+    c.profiles.push(p); c.activeId = p.id; cfg.save(c);
+  }
   render();
 });
 
 /* boot */
 (function(){
   const c = cfg.load();
-  if (c.owner && c.repo && c.token) loadFromGitHub();
+  if (c.owner && c.repo && c.token && c.profiles.length) loadActive();
   else openSettings();
 })();
 

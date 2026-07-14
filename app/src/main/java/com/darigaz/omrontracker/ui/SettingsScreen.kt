@@ -32,6 +32,7 @@ fun SettingsScreen(viewModel: MeasurementViewModel) {
     var owner by remember { mutableStateOf(gh.owner) }
     var repo by remember { mutableStateOf(gh.repo.ifBlank { "omron-data" }) }
     var token by remember { mutableStateOf(gh.token) }
+    var fileName by remember { mutableStateOf(gh.fileName) }
     var status by remember { mutableStateOf<String?>(null) }
 
     Column(
@@ -76,12 +77,22 @@ fun SettingsScreen(viewModel: MeasurementViewModel) {
             modifier = Modifier.fillMaxWidth(),
         )
 
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = fileName,
+            onValueChange = { fileName = it },
+            label = { Text("Arquivo desta pessoa (ex: measurements-renan.json)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         Spacer(Modifier.height(16.dp))
         Button(
             onClick = {
                 gh.owner = owner
                 gh.repo = repo
                 gh.token = token
+                gh.fileName = fileName
                 status = if (gh.isConfigured()) {
                     viewModel.syncPending()
                     "Configuração salva. Enviando pendentes…"
